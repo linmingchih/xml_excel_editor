@@ -392,13 +392,20 @@
 
     }
     tr.layer-row.conductor-row {
-      background-color: #fef9c3;
+      background-color: #FFD580;
+    }
+
+    tr.layer-row.conductor-row td {
+      background-color: #FFD580;
     }
 
     tr.layer-row.dielectric-row {
-      background-color: #e0f2fe;
+      background-color: #CCFFCC;
     }
 
+    tr.layer-row.dielectric-row td {
+      background-color: #CCFFCC;
+    }
     tr.layer-highlight {
       background-color: #fde68a;
       outline: 2px solid #f97316;
@@ -432,7 +439,7 @@
 
 
     table.grid td[contenteditable="true"] {
-
+      background: inherit;
 
 
       background: #ffffff;
@@ -922,7 +929,7 @@
 
 
 
-          <th>Huray Top Radius</th>
+          <th>Huray Top Radius (um)</th>
 
 
 
@@ -930,7 +937,7 @@
 
 
 
-          <th>Huray Bottom Radius</th>
+          <th>Huray Bottom Radius (um)</th>
 
 
 
@@ -938,7 +945,7 @@
 
 
 
-          <th>Huray Side Radius</th>
+          <th>Huray Side Radius (um)</th>
 
 
 
@@ -3211,50 +3218,24 @@
 
 
 
+
+
+
         case "name":
-
-
-
         case "type":
-
-
-
         case "thickness":
-
-
-
-        case "hurayTopRatio":
-
-
-
-        case "hurayTopRadius":
-
-
-
-        case "hurayBottomRatio":
-
-
-
-        case "hurayBottomRadius":
-
-
-
-        case "huraySideRatio":
-
-
-
-        case "huraySideRadius":
-
-
-
           layer[field] = value;
-
-
-
           break;
-
-
-
+        case "hurayTopRatio":
+        case "hurayBottomRatio":
+        case "huraySideRatio":
+          layer[field] = normalizeMaterialPropValue(value);
+          break;
+        case "hurayTopRadius":
+        case "hurayBottomRadius":
+        case "huraySideRadius":
+          layer[field] = normalizeHurayRadiusValue(value);
+          break;
         case "etchFactor":
 
 
@@ -3781,6 +3762,18 @@
         return "";
       }
       return String(value).trim();
+    }
+
+    function normalizeHurayRadiusValue(value) {
+      const trimmed = (value ?? "").toString().trim();
+      if (!trimmed) {
+        return "";
+      }
+      const numeric = parseFloat(trimmed.replace(/um$/i, "").trim());
+      if (!Number.isFinite(numeric)) {
+        return "";
+      }
+      return numeric.toString();
     }
 
     function findMaterialByProperties(props) {
@@ -4687,38 +4680,19 @@
 
 
     function readHuray(layerNode, tagName, attribute) {
-
-
-
       const node = findChildElement(layerNode, tagName);
-
-
-
       if (!node) {
-
-
-
         return "";
-
-
-
       }
-
-
-
       const attr = node.getAttribute(attribute);
-
-
-
-      return attr ? attr : "";
-
-
-
+      if (!attr) {
+        return "";
+      }
+      if (attribute === "NoduleRadius") {
+        return normalizeHurayRadiusValue(attr);
+      }
+      return normalizeMaterialPropValue(attr);
     }
-
-
-
-
 
 
 
@@ -5102,11 +5076,11 @@
 
 
 
-      const ratioValue = ratio && ratio.toString ? ratio.toString().trim() : "";
+      const ratioValue = normalizeMaterialPropValue(ratio);
 
 
 
-      const radiusValue = radius && radius.toString ? radius.toString().trim() : "";
+      const radiusValue = normalizeHurayRadiusValue(radius);
 
 
 
@@ -5142,7 +5116,7 @@
 
 
 
-        node.setAttribute("NoduleRadius", radiusValue);
+        node.setAttribute("NoduleRadius", `${radiusValue}um`);
 
 
 
