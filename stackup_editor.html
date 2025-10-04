@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+﻿
+        <table id="layersTable"!DOCTYPE html>
 
 
 
@@ -675,6 +676,99 @@
 
 
 
+
+
+    td.fill-material-cell {
+      position: relative;
+    }
+
+    td.fill-material-cell::after {
+      content: "\25BC";
+      position: absolute;
+      top: 50%;
+      right: 0.75rem;
+      transform: translateY(-40%);
+      font-size: 0.75rem;
+      color: #9aa0a6;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    td.fill-material-cell:hover::after,
+    td.fill-material-cell:focus-within::after {
+      opacity: 1;
+      transform: translateY(-50%);
+    }
+
+    .fill-material-select {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      border: none;
+      background-color: transparent;
+      background-image: none;
+      font: inherit;
+      color: inherit;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      text-align-last: center;
+      box-sizing: border-box;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      transition: background-color 120ms ease;
+    }
+
+    .fill-material-select:focus,
+    .fill-material-select:focus-visible {
+      background-color: #f9f9f9;
+      outline: none;
+      box-shadow: inset 0 0 0 1px #d0d0d0;
+    }
+
+    .fill-material-select::-ms-expand {
+      display: none;
+    }
+
+    td.cell-selected {
+      background-color: #eef2ff;
+      box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.45);
+    }
+
+    .multi-edit {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background-color: #f8fafc;
+      flex-wrap: wrap;
+    }
+
+    .multi-edit span {
+      font-size: 0.9rem;
+      color: #1f2933;
+      font-weight: 500;
+    }
+
+    .multi-edit input[type="text"] {
+      flex: 1 1 12rem;
+      min-width: 10rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .multi-edit .multi-edit-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
   </style>
 
 
@@ -871,6 +965,14 @@
 
 
     </header>
+    <form id="multiEditForm" class="multi-edit hidden" autocomplete="off">
+      <span id="multiEditSummary"></span>
+      <input id="multiEditValue" type="text" placeholder="Enter value" />
+      <div class="multi-edit-actions">
+        <button type="submit">Apply</button>
+        <button type="button" id="multiEditCancel" class="secondary">Cancel</button>
+      </div>
+    </form>
 
 
 
@@ -1084,46 +1186,31 @@
 
     const dom = {
 
-
-
       fileInput: document.getElementById("fileInput"),
-
-
 
       downloadXml: document.getElementById("downloadXml"),
 
-
-
       materialsSection: document.getElementById("materialsSection"),
-
-
 
       materialsTableBody: document.querySelector("#materialsTable tbody"),
 
-
-
       layersSection: document.getElementById("layersSection"),
-
-
 
       layersTableBody: document.querySelector("#layersTable tbody"),
 
+      multiEditForm: document.getElementById("multiEditForm"),
 
+      multiEditSummary: document.getElementById("multiEditSummary"),
 
+      multiEditValue: document.getElementById("multiEditValue"),
 
-
+      multiEditCancel: document.getElementById("multiEditCancel"),
 
       lengthUnit: document.getElementById("lengthUnit"),
 
-
-
       otherLayersSection: document.getElementById("otherLayersSection"),
 
-
-
       otherLayersTableBody: document.querySelector("#otherLayersTable tbody")
-
-
 
     };
 
@@ -1133,6 +1220,203 @@
 
 
 
+    const multiSelectState = {
+      cells: new Set(),
+      inputDirty: false
+    };
+
+    function resolveCellDataElement(cell) {
+      if (!cell) {
+        return null;
+      }
+      if (cell.dataset && cell.dataset.collection && cell.dataset.field) {
+        return cell;
+      }
+      return cell.querySelector("[data-collection][data-field]");
+    }
+
+    function getCellDescriptor(cell) {
+      const dataElement = resolveCellDataElement(cell);
+      if (!dataElement) {
+        return null;
+      }
+      const collection = dataElement.dataset.collection;
+      const field = dataElement.dataset.field;
+      if (!collection || !field) {
+        return null;
+      }
+      const hasInteractiveChild = Boolean(cell.querySelector("input[data-field], select[data-field], textarea[data-field]"));
+      if (!cell.isContentEditable && !hasInteractiveChild) {
+        return null;
+      }
+      const row = cell.closest("tr");
+      if (!row) {
+        return null;
+      }
+      const index = Number(row.dataset.index || "-1");
+      if (Number.isNaN(index) || index < 0) {
+        return null;
+      }
+      return { cell, dataElement, collection, field, index };
+    }
+
+    function readCellValue(cell) {
+      const interactive = cell.querySelector("input[data-field], select[data-field], textarea[data-field]");
+      if (interactive instanceof HTMLInputElement || interactive instanceof HTMLSelectElement || interactive instanceof HTMLTextAreaElement) {
+        return interactive.value;
+      }
+      const text = cell.textContent || "";
+      return text.trim();
+    }
+
+    function getSelectionDescriptors() {
+      const descriptors = [];
+      multiSelectState.cells.forEach((cell) => {
+        const descriptor = getCellDescriptor(cell);
+        if (descriptor) {
+          descriptors.push(descriptor);
+        }
+      });
+      return descriptors;
+    }
+
+    function computeSharedValue() {
+      const descriptors = getSelectionDescriptors();
+      if (descriptors.length === 0) {
+        return "";
+      }
+      const values = new Set();
+      descriptors.forEach(({ cell }) => {
+        values.add(readCellValue(cell));
+      });
+      if (values.size === 1) {
+        return values.values().next().value;
+      }
+      return "";
+    }
+
+    function updateMultiEditBar() {
+      const { multiEditForm, multiEditSummary, multiEditValue } = dom;
+      if (!multiEditForm || !multiEditSummary || !multiEditValue) {
+        return;
+      }
+      const count = multiSelectState.cells.size;
+      const wasHidden = multiEditForm.classList.contains("hidden");
+      if (count > 1) {
+        multiEditSummary.textContent = `Apply value to ${count} selected cells`;
+        if (!multiSelectState.inputDirty) {
+          multiEditValue.value = computeSharedValue();
+        }
+        if (wasHidden) {
+          multiEditForm.classList.remove("hidden");
+          requestAnimationFrame(() => {
+            multiEditValue.focus();
+            multiEditValue.select();
+          });
+        }
+      } else {
+        multiEditSummary.textContent = "";
+        if (!wasHidden) {
+          multiEditForm.classList.add("hidden");
+        }
+        multiEditValue.value = "";
+        multiSelectState.inputDirty = false;
+      }
+    }
+
+    function clearSelection() {
+      multiSelectState.cells.forEach((cell) => {
+        cell.classList.remove("cell-selected");
+      });
+      multiSelectState.cells.clear();
+      multiSelectState.inputDirty = false;
+      updateMultiEditBar();
+    }
+
+    function toggleCellSelection(cell) {
+      const descriptor = getCellDescriptor(cell);
+      if (!descriptor || descriptor.collection !== "layers") {
+        return;
+      }
+      if (multiSelectState.cells.has(cell)) {
+        cell.classList.remove("cell-selected");
+        multiSelectState.cells.delete(cell);
+      } else {
+        multiSelectState.cells.add(cell);
+        cell.classList.add("cell-selected");
+      }
+      updateMultiEditBar();
+    }
+
+    function applySharedValueToSelection(value) {
+      const descriptors = getSelectionDescriptors();
+      if (descriptors.length === 0) {
+        return;
+      }
+      let shouldRenderLayers = false;
+      descriptors.forEach(({ collection, field, index }) => {
+        if (collection === "layers") {
+          updateLayerCell(index, field, value, { ensureMaterial: false });
+          shouldRenderLayers = true;
+        }
+      });
+      clearSelection();
+      if (shouldRenderLayers) {
+        renderLayers();
+      }
+    }
+    if (dom.multiEditValue) {
+      dom.multiEditValue.addEventListener("input", () => {
+        multiSelectState.inputDirty = true;
+      });
+    }
+
+    if (dom.multiEditForm) {
+      dom.multiEditForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (multiSelectState.cells.size === 0) {
+          return;
+        }
+        const value = dom.multiEditValue ? dom.multiEditValue.value : "";
+        applySharedValueToSelection(value);
+      });
+    }
+
+    if (dom.multiEditCancel) {
+      dom.multiEditCancel.addEventListener("click", () => {
+        clearSelection();
+      });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && multiSelectState.cells.size > 0) {
+        clearSelection();
+      }
+    });
+
+    document.body.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const multiEditForm = dom.multiEditForm;
+      if (multiEditForm && multiEditForm.contains(target)) {
+        return;
+      }
+      const cell = target.closest("td");
+      const descriptor = cell ? getCellDescriptor(cell) : null;
+      const isModifier = event.ctrlKey || event.metaKey;
+      if (isModifier && descriptor && descriptor.collection === "layers") {
+        event.preventDefault();
+        toggleCellSelection(descriptor.cell);
+        return;
+      }
+      if (!isModifier && multiSelectState.cells.size > 0) {
+        if (!descriptor || !multiSelectState.cells.has(descriptor.cell) || multiSelectState.cells.size > 1) {
+          clearSelection();
+        }
+      }
+    }, true);
     const materialFieldDescriptors = [
 
 
@@ -2696,7 +2980,9 @@
 
     function renderLayers() {
 
-
+      if (multiSelectState.cells.size > 0) {
+        clearSelection();
+      }
 
       autoAssignFillMaterials();
 
@@ -2809,6 +3095,8 @@
 
 
             cell.classList.add("color");
+            cell.dataset.collection = "layers";
+            cell.dataset.field = descriptor.key;
 
 
 
@@ -2849,8 +3137,10 @@
             cell.dataset.field = descriptor.key;
             cell.tabIndex = 0;
             cell.spellcheck = false;
+            cell.classList.add("fill-material-cell");
 
             const select = document.createElement("select");
+            select.classList.add("fill-material-select");
             select.dataset.collection = "layers";
             select.dataset.field = descriptor.key;
 
@@ -5526,6 +5816,13 @@
 
 
 </html>
+
+
+
+
+
+
+
 
 
 
