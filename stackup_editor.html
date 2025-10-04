@@ -1438,7 +1438,11 @@
 
 
 
-      if (!(element instanceof HTMLInputElement)) {
+      const isInputElement = element instanceof HTMLInputElement || element instanceof HTMLSelectElement;
+
+
+
+      if (!isInputElement) {
 
 
 
@@ -1506,7 +1510,7 @@
 
 
 
-      const value = element instanceof HTMLInputElement ? element.value : element.textContent.trim();
+      const value = isInputElement ? element.value : element.textContent.trim();
 
 
 
@@ -1574,11 +1578,39 @@
 
 
 
-        if (field === "fillMaterial" && !(element instanceof HTMLInputElement)) {
+        if (field === "fillMaterial") {
 
 
 
-          element.textContent = layer.fillMaterial || "";
+          if (element instanceof HTMLSelectElement) {
+
+
+
+            const desiredValue = layer.fillMaterial || "";
+
+
+
+            if (element.value !== desiredValue) {
+
+
+
+              element.value = desiredValue;
+
+
+
+            }
+
+
+
+          } else if (!(element instanceof HTMLInputElement)) {
+
+
+
+            element.textContent = layer.fillMaterial || "";
+
+
+
+          }
 
 
 
@@ -2811,6 +2843,43 @@
             cell.appendChild(colorInput);
 
 
+
+          } else if (descriptor.key === "fillMaterial" && isConductor(layer.type)) {
+            cell.dataset.collection = "layers";
+            cell.dataset.field = descriptor.key;
+            cell.tabIndex = 0;
+            cell.spellcheck = false;
+
+            const select = document.createElement("select");
+            select.dataset.collection = "layers";
+            select.dataset.field = descriptor.key;
+
+            const optionNames = getAdjacentDielectricMaterials(index);
+            const seenNames = new Set();
+            const addOption = (name) => {
+              const normalized = normalizeMaterialPropValue(name);
+              if (seenNames.has(normalized)) {
+                return;
+              }
+              seenNames.add(normalized);
+              const entry = normalized ? findMaterial(name) || findMaterial(normalized) : null;
+              const resolvedName = entry ? entry.name : normalized;
+              const option = document.createElement("option");
+              option.value = resolvedName || "";
+              option.textContent = resolvedName || "";
+              select.appendChild(option);
+            };
+
+            addOption("");
+            optionNames.forEach((name) => addOption(name));
+
+            const currentFill = layer.fillMaterial || "";
+            if (currentFill) {
+              addOption(currentFill);
+            }
+
+            select.value = currentFill;
+            cell.appendChild(select);
 
           } else {
             const disableForDielectric = (
@@ -4063,11 +4132,27 @@
 
 
 
-        const dielectric = findDielectricAbove(index);
+        const candidates = getAdjacentDielectricMaterials(index);
 
 
 
-        if (!dielectric) {
+        if (candidates.length === 0) {
+
+
+
+          if (layer.fillMaterial) {
+
+
+
+            layer.fillMaterial = "";
+
+
+
+          }
+
+
+
+          assignProps(layer.fillMaterialPropsFallback, null);
 
 
 
@@ -4079,19 +4164,31 @@
 
 
 
-        const entry = ensureMaterial(dielectric.material);
+        const normalizedCandidates = candidates.map((name) => normalizeMaterialPropValue(name));
 
 
 
-        if (entry) {
+        const normalizedCurrent = normalizeMaterialPropValue(layer.fillMaterial);
 
 
 
-          if (layer.fillMaterial !== entry.name) {
+        let desiredName = "";
 
 
 
-            layer.fillMaterial = entry.name;
+        if (normalizedCurrent) {
+
+
+
+          const matchIndex = normalizedCandidates.findIndex((candidate) => candidate === normalizedCurrent);
+
+
+
+          if (matchIndex !== -1) {
+
+
+
+            desiredName = candidates[matchIndex];
 
 
 
@@ -4099,23 +4196,39 @@
 
 
 
-          assignProps(layer.fillMaterialPropsFallback, entry);
+        }
 
 
 
-        } else {
+        if (!desiredName) {
 
 
 
-          layer.fillMaterial = "";
-
-
-
-          assignProps(layer.fillMaterialPropsFallback, null);
+          desiredName = candidates[0];
 
 
 
         }
+
+
+
+        const entry = ensureMaterial(desiredName);
+
+
+
+        if (layer.fillMaterial !== entry.name) {
+
+
+
+          layer.fillMaterial = entry.name;
+
+
+
+        }
+
+
+
+        assignProps(layer.fillMaterialPropsFallback, entry);
 
 
 
@@ -4156,6 +4269,106 @@
 
 
       return null;
+
+
+
+    }
+
+
+
+    function findDielectricBelow(index) {
+
+
+
+      for (let i = index + 1; i < state.layers.length; i += 1) {
+
+
+
+        const candidate = state.layers[i];
+
+
+
+        if (isDielectric(candidate.type)) {
+
+
+
+          return candidate;
+
+
+
+        }
+
+
+
+      }
+
+
+
+      return null;
+
+
+
+    }
+
+
+
+    function getAdjacentDielectricMaterials(index) {
+
+
+
+      const materials = [];
+
+
+
+      const above = findDielectricAbove(index);
+
+
+
+      if (above && above.material) {
+
+
+
+        materials.push(above.material);
+
+
+
+      }
+
+
+
+      const below = findDielectricBelow(index);
+
+
+
+      if (below && below.material) {
+
+
+
+        const normalizedBelow = normalizeMaterialPropValue(below.material);
+
+
+
+        const alreadyPresent = materials.some((name) => normalizeMaterialPropValue(name) === normalizedBelow);
+
+
+
+        if (!alreadyPresent) {
+
+
+
+          materials.push(below.material);
+
+
+
+        }
+
+
+
+      }
+
+
+
+      return materials;
 
 
 
@@ -5313,6 +5526,7 @@
 
 
 </html>
+
 
 
 
