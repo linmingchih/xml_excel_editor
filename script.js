@@ -22,8 +22,7 @@
 
 
 
-      lengthUnit: "",
-      selectedMaterialName: ""
+      lengthUnit: ""
 
 
 
@@ -343,33 +342,7 @@
 
 
     });
-    dom.materialsTableBody.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      const row = target.closest("tr");
-      if (!row) {
-        return;
-      }
-      const index = Number(row.dataset.index || "-1");
-      if (Number.isNaN(index) || index < 0) {
-        return;
-      }
-      const material = state.materials[index];
-      if (!material) {
-        return;
-      }
-      const normalizedName = normalizeMaterialPropValue(material.name);
-      if (state.selectedMaterialName && normalizedName === normalizeMaterialPropValue(state.selectedMaterialName)) {
-        state.selectedMaterialName = "";
-      } else {
-        state.selectedMaterialName = normalizedName;
-      }
-      renderMaterials();
-      renderLayers();
-    });
-
+    
 
 
 
@@ -1228,7 +1201,6 @@
 
       state.lengthUnit = "";
 
-      state.selectedMaterialName = "";
 
 
     }
@@ -1602,17 +1574,12 @@
 
 
     function renderMaterials() {
-      const selected = normalizeMaterialPropValue(state.selectedMaterialName);
       dom.materialsTableBody.innerHTML = "";
       state.materials.forEach((material, index) => {
         const row = document.createElement("tr");
         row.dataset.index = String(index);
         row.dataset.name = material.name || "";
         row.classList.add("material-row");
-        const materialName = normalizeMaterialPropValue(material.name);
-        if (selected && materialName && materialName === selected) {
-          row.classList.add("selected");
-        }
         materialFieldDescriptors.forEach((descriptor) => {
           const cell = document.createElement("td");
           const value = material[descriptor.key] || "";
@@ -1622,11 +1589,12 @@
           }
           row.appendChild(cell);
         });
+        const usageCell = document.createElement("td");
+        const layerNames = getLayerNamesUsingMaterial(material.name);
+        usageCell.textContent = layerNames.length === 0 ? "-" : layerNames.join(", ");
+        row.appendChild(usageCell);
         dom.materialsTableBody.appendChild(row);
       });
-      if (state.materials.length === 0) {
-        state.selectedMaterialName = "";
-      }
     }
 
     function pruneUnusedMaterials() {
@@ -1643,12 +1611,6 @@
           modified = true;
         }
       }
-      if (modified) {
-        const normalizedSelected = normalizeMaterialPropValue(state.selectedMaterialName);
-        if (normalizedSelected && !findMaterial(normalizedSelected)) {
-          state.selectedMaterialName = "";
-        }
-      }
       return modified;
     }
 
@@ -1661,7 +1623,6 @@
 
 
       dom.layersTableBody.innerHTML = "";
-      const selectedMaterial = normalizeMaterialPropValue(state.selectedMaterialName);
 
 
 
@@ -1705,10 +1666,6 @@
         row.dataset.index = String(index);
         row.dataset.materialName = layer.material || "";
         row.dataset.fillMaterialName = layer.fillMaterial || "";
-        if (selectedMaterial && (rowMaterialName === selectedMaterial || rowFillMaterialName === selectedMaterial)) {
-          row.classList.add("layer-highlight");
-        }
-
 
 
 
@@ -1906,7 +1863,6 @@
 
 
     function renderOtherLayers() {
-      const selectedMaterial = normalizeMaterialPropValue(state.selectedMaterialName);
 
 
 
@@ -1970,9 +1926,6 @@
         row.classList.add("other-layer-row");
         const normalizedMaterial = normalizeMaterialPropValue(layer.material);
         const normalizedFill = normalizeMaterialPropValue(layer.fillMaterial);
-        if (selectedMaterial && (normalizedMaterial === selectedMaterial || normalizedFill === selectedMaterial)) {
-          row.classList.add("layer-highlight");
-        }
         row.dataset.index = String(layerIndex);
         row.dataset.materialName = layer.material || "";
         row.dataset.fillMaterialName = layer.fillMaterial || "";
@@ -2796,6 +2749,28 @@
         }
       }
       return count;
+    }
+
+    function getLayerNamesUsingMaterial(name) {
+      const normalizedName = normalizeMaterialPropValue(name);
+      if (!normalizedName) {
+        return [];
+      }
+      const seen = new Set();
+      const layersUsing = [];
+      for (let index = 0; index < state.layers.length; index += 1) {
+        const layer = state.layers[index];
+        const normalizedMaterial = normalizeMaterialPropValue(layer.material);
+        const normalizedFill = normalizeMaterialPropValue(layer.fillMaterial);
+        if (normalizedMaterial === normalizedName || normalizedFill === normalizedName) {
+          const layerName = layer.name || "";
+          if (layerName && !seen.has(layerName)) {
+            seen.add(layerName);
+            layersUsing.push(layerName);
+          }
+        }
+      }
+      return layersUsing;
     }
 
 
