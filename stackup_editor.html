@@ -392,11 +392,11 @@
 
     }
     tr.layer-row.conductor-row {
-      background-color: #FFD580;
+      background-color: #FFFFFF;
     }
 
     tr.layer-row.conductor-row td {
-      background-color: #FFD580;
+      background-color: #FFFFFF;
     }
 
     tr.layer-row.dielectric-row {
@@ -458,6 +458,19 @@
 
 
 
+    }
+
+    /* Force uniform backgrounds for specific layer types, overriding zebra striping and focus */
+    table.grid tr.layer-row.conductor-row,
+    table.grid tr.layer-row.conductor-row td,
+    table.grid tr.layer-row.conductor-row td[contenteditable="true"] {
+      background-color: #FFFFFF !important;
+    }
+
+    table.grid tr.layer-row.dielectric-row,
+    table.grid tr.layer-row.dielectric-row td,
+    table.grid tr.layer-row.dielectric-row td[contenteditable="true"] {
+      background-color: #CCFFCC !important;
     }
 
 
@@ -2800,32 +2813,29 @@
 
 
           } else {
+            const disableForDielectric = (
+              isDielectric(layer.type) && (
+                descriptor.key === "fillMaterial" ||
+                descriptor.key === "etchFactor" ||
+                descriptor.key === "hurayTopRatio" ||
+                descriptor.key === "hurayTopRadius" ||
+                descriptor.key === "hurayBottomRatio" ||
+                descriptor.key === "hurayBottomRadius" ||
+                descriptor.key === "huraySideRatio" ||
+                descriptor.key === "huraySideRadius"
+              )
+            );
 
-
-
-            cell.contentEditable = "true";
-
-
-
-            cell.tabIndex = 0;
-
-
+            if (!disableForDielectric) {
+              cell.contentEditable = "true";
+              cell.tabIndex = 0;
+            }
 
             cell.dataset.collection = "layers";
-
-
-
             cell.dataset.field = descriptor.key;
-
-
-
             cell.spellcheck = false;
 
-
-
             cell.textContent = descriptor.key === "etchFactor" ? layer.etchFactor || "" : layer[descriptor.key] || "";
-
-
 
           }
 
