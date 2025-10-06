@@ -51,7 +51,8 @@
       color: #334155;
     }
 
-    button {
+    button,
+    .button-lookalike {
       padding: 0.48rem 0.9rem;
       font-size: 0.85rem;
       border-radius: 4px;
@@ -59,6 +60,7 @@
       background: #4a74df;
       color: #ffffff;
       cursor: pointer;
+      text-align: center;
     }
 
     button.secondary {
@@ -70,6 +72,51 @@
     button:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+
+    .file-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .file-input-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    .file-name-display {
+      font-size: 0.85rem;
+      color: #475569;
+    }
+
+    .help-content {
+      padding: 0.75rem 1rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background-color: #f8fafc;
+    }
+
+    .help-content h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    .help-content ol {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+
+    .help-content li {
+      margin-bottom: 0.25rem;
     }
 
     .table-actions {
@@ -125,11 +172,8 @@
 
     table.grid td[contenteditable="true"] {
       background: inherit;
-
       background: #ffffff;
-
       white-space: nowrap;
-
     }
 
     table.grid td[contenteditable="true"]:focus {
@@ -138,7 +182,6 @@
       background: #eef3ff;
     }
 
-    /* Force uniform backgrounds for specific layer types, overriding zebra striping and focus */
     table.grid tr.layer-row.conductor-row,
     table.grid tr.layer-row.conductor-row td,
     table.grid tr.layer-row.conductor-row td[contenteditable="true"] {
@@ -185,18 +228,16 @@
       font-size: 0.86rem;
       line-height: 1.45;
       color: #475569;
-      margin: 0; /* Let the panel's `gap` property handle spacing */
+      margin: 0;
     }
 
     @media (max-width: 1100px) {
       body {
         padding: 1rem;
       }
-
       table.grid {
         font-size: 0.8rem;
       }
-
       table.grid td[contenteditable="true"] {
         min-width: 4.5rem;
       }
@@ -300,14 +341,26 @@
 
   <section class="panel">
     <header class="actions">
-      <label for="fileInput" class="help">
-        Load a schema-compliant XML (`c:Control` -> `Stackup`) file, edit directly like an Excel grid, then export the updated XML.
-      </label>
-      <input type="file" id="fileInput" accept=".xml" />
+      <div class="file-input-wrapper">
+        <input type="file" id="fileInput" accept=".xml" class="file-input-hidden" />
+        <label for="fileInput" class="button-lookalike">Select XML File</label>
+        <span id="fileName" class="file-name-display"></span>
+      </div>
       <button id="downloadXml" disabled>Download Edited XML</button>
+      <button id="toggleHelpBtn" class="secondary" style="margin-left: auto;">Show Help</button>
     </header>
+    <div id="helpContent" class="help-content hidden">
+      <h4>How to Use</h4>
+      <ol>
+        <li>Click <strong>Select XML File</strong> to load a valid stackup XML file.</li>
+        <li>The editor will parse the file and display the materials and layers in editable tables.</li>
+        <li>Click directly on cells in the <strong>Layers</strong> table to edit their values. Changes are saved automatically.</li>
+        <li>Material properties (dk, df, conductivity) can be edited directly in the layer row. The <strong>Materials</strong> table will update to reflect these changes.</li>
+        <li>Once you are finished, click <strong>Download Edited XML</strong> to save your changes to a new file.</li>
+      </ol>
+    </div>
     <p class="help">
-      You can paste a cell block copied from Excel straight into either table. Every layer row shows the material parameters (dk, df, conductivity). Leave cells empty when no value applies.
+      <strong>Pro Tip:</strong> You can paste a cell block copied from Excel straight into the layers table.
     </p>
   </section>
 
@@ -341,7 +394,6 @@
           <input id="lengthUnit" class="type-text" type="text" placeholder="mil" />
         </p>
       </div>
-
     </header>
     <form id="multiEditForm" class="multi-edit hidden" autocomplete="off">
       <span id="multiEditSummary"></span>
@@ -415,7 +467,10 @@
       multiEditCancel: document.getElementById("multiEditCancel"),
       lengthUnit: document.getElementById("lengthUnit"),
       otherLayersSection: document.getElementById("otherLayersSection"),
-      otherLayersTableBody: document.querySelector("#otherLayersTable tbody")
+      otherLayersTableBody: document.querySelector("#otherLayersTable tbody"),
+      toggleHelpBtn: document.getElementById("toggleHelpBtn"),
+      helpContent: document.getElementById("helpContent"),
+      fileNameDisplay: document.getElementById("fileName")
     };
 
     const multiSelectState = {
@@ -615,6 +670,20 @@
         }
       }
     }, true);
+
+    dom.toggleHelpBtn.addEventListener("click", () => {
+      const isHidden = dom.helpContent.classList.toggle("hidden");
+      dom.toggleHelpBtn.textContent = isHidden ? "Show Help" : "Hide Help";
+    });
+
+    dom.fileInput.addEventListener("change", () => {
+      if (dom.fileInput.files.length > 0) {
+        dom.fileNameDisplay.textContent = dom.fileInput.files[0].name;
+      } else {
+        dom.fileNameDisplay.textContent = "";
+      }
+    });
+
     const materialFieldDescriptors = [
       { key: "name" },
       { key: "permittivity" },
@@ -678,7 +747,7 @@
     dom.lengthUnit.addEventListener("input", (event) => {
       state.lengthUnit = event.target.value.trim();
     });
-    
+
     document.body.addEventListener("input", (event) => {
       const element = event.target;
       if (!(element instanceof HTMLElement)) {
