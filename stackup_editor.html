@@ -136,6 +136,36 @@
       border-bottom: 2px solid #afbdd9;
     }
 
+    table.grid thead th {
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    table.grid thead th::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(99, 102, 241, 0.2);
+      opacity: 0;
+      transition: opacity 150ms ease-in-out;
+      pointer-events: none;
+    }
+
+    table.grid thead th:hover::after {
+      opacity: 1;
+    }
+
+    table.grid thead th.header-active::after {
+      background-color: rgba(99, 102, 241, 0.3);
+      opacity: 1;
+      transition-duration: 50ms;
+    }
+
     table.grid th,
     table.grid td {
       border: 1px solid #c7d2e2;
@@ -586,6 +616,17 @@
       updateMultiEditBar();
     }
 
+    function selectCell(cell) {
+      const descriptor = getCellDescriptor(cell);
+      if (!descriptor || descriptor.collection !== "layers") {
+        return;
+      }
+      if (!multiSelectState.cells.has(cell)) {
+        multiSelectState.cells.add(cell);
+        cell.classList.add("cell-selected");
+      }
+    }
+
     function toggleCellSelection(cell) {
       const descriptor = getCellDescriptor(cell);
       if (!descriptor || descriptor.collection !== "layers") {
@@ -638,6 +679,42 @@
     if (dom.multiEditCancel) {
       dom.multiEditCancel.addEventListener("click", () => {
         clearSelection();
+      });
+    }
+
+    const layersTableHeader = document.querySelector("#layersTable thead");
+    if (layersTableHeader) {
+      layersTableHeader.addEventListener("click", (event) => {
+        const headerCell = event.target.closest("th");
+        if (!headerCell) {
+          return;
+        }
+
+        headerCell.classList.add("header-active");
+        setTimeout(() => {
+          headerCell.classList.remove("header-active");
+        }, 150);
+
+        const columnIndex = Array.from(headerCell.parentElement.children).indexOf(headerCell);
+        if (columnIndex < 0 || columnIndex >= layerFieldDescriptors.length) {
+          return;
+        }
+
+        const descriptor = layerFieldDescriptors[columnIndex];
+        if (!descriptor) {
+          return;
+        }
+
+        clearSelection();
+
+        const field = descriptor.key;
+        const cellsToSelect = dom.layersTableBody.querySelectorAll('td[data-field="' + field + '"]');
+
+        cellsToSelect.forEach(cell => {
+          selectCell(cell);
+        });
+
+        updateMultiEditBar();
       });
     }
 
