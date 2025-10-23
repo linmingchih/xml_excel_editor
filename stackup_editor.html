@@ -1028,6 +1028,17 @@
       const copper = addMaterial({ name: "COPPER", conductivity: "5.8e7" });
       const fr4 = addMaterial({ name: "FR-4", permittivity: "4.2", lossTangent: "0.018" });
 
+      const conductorColors = [
+        "#E63946", // Imperial Red
+        "#F4A261", // Sandy Brown
+        "#2A9D8F", // Persian Green
+        "#264653", // Charcoal
+        "#E9C46A", // Saffron
+        "#F77F00", // Tangerine
+        "#8338EC", // Blue Violet
+        "#3A86FF"  // Ultramarine Blue
+      ];
+
       for (let i = 1; i <= numConductors; i++) {
         // Dielectric first
         const dielectricLayer = createEmptyLayer();
@@ -1044,6 +1055,7 @@
         conductorLayer.type = "CONDUCTOR";
         conductorLayer.material = copper.name;
         conductorLayer.thickness = "1.2";
+        conductorLayer.color = conductorColors[(i - 1) % conductorColors.length];
         assignProps(conductorLayer.materialPropsFallback, copper);
         state.layers.push(conductorLayer);
       }
